@@ -1,0 +1,70 @@
+name: radar
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: 'Dry run (no envia a Telegram)'
+        type: boolean
+        default: false
+
+# Una sola pasada a la vez; si una se retrasa, la siguiente espera.
+concurrency:
+  group: radar
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --omit=dev --no-audit --no-fund
+
+      # Estado persistente (ids ya avisados, cache de calidad de repos, watchlist)
+      # vive en la rama `state`. Si no existe aun, se parte de seed/.
+      - name: Restore state
+        run: |
+          mkdir -p sandbox_workspace
+          if git ls-remote --exit-code --heads origin state >/dev/null 2>&1; then
+            git fetch --depth=1 origin state
+            git --work-tree=sandbox_workspace checkout FETCH_HEAD -- .
+            git reset -q
+          else
+            cp seed/* sandbox_workspace/
+          fi
+          ls sandbox_workspace
+
+      - name: Radar tick
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Opcional: un PAT propio sube el limite de la API de GitHub.
+          GH_TOKEN: ${{ secrets.RADAR_GH_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RADAR_GH_TOKEN || secrets.GITHUB_TOKEN }}
+          RADAR_DRY: ${{ inputs.dry && '1' || '0' }}
+        run: node radar_tick.js
+
+      - name: Save state
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd sandbox_workspace
+          rm -f bounties_found.json *.tmp
+          git init -q
+          git checkout -q -b state
+          git add -A
+          git -c user.name=radar -c user.email=radar@users.noreply.github.com commit -qm "state $(date -u +%FT%TZ)"
+          git push -qf "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" state

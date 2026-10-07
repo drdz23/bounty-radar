@@ -1,0 +1,9 @@
+{
+  "name": "bounty-radar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": { "tick": "node radar_tick.js" },
+  "dependencies": { "dotenv": "16.4.5" }
+}
