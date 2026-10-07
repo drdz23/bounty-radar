@@ -154,6 +154,12 @@ function format(n, risks) {
 }
 
 async function main() {
+  if (process.env.RADAR_TEST === '1') {
+    const r = await send('✅ Radar en la nube activo (GitHub Actions). Prueba de envio; si lees esto, los avisos llegan.');
+    log('test_sent', { ok: r?.ok });
+    if (r?.ok === false) process.exitCode = 1;
+    return;
+  }
   await fs.mkdir(WORKSPACE, { recursive: true });
   await checkWatchedPRs(send).catch((e) => log('pr_watch_threw', { err: e.message }));
 

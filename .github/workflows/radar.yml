@@ -9,6 +9,10 @@ on:
         description: 'Dry run (no envia a Telegram)'
         type: boolean
         default: false
+      test:
+        description: 'Solo manda un mensaje de prueba a Telegram'
+        type: boolean
+        default: false
 
 # Una sola pasada a la vez; si una se retrasa, la siguiente espera.
 concurrency:
@@ -54,6 +58,7 @@ jobs:
           GH_TOKEN: ${{ secrets.RADAR_GH_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.RADAR_GH_TOKEN || secrets.GITHUB_TOKEN }}
           RADAR_DRY: ${{ inputs.dry && '1' || '0' }}
+          RADAR_TEST: ${{ inputs.test && '1' || '0' }}
         run: node radar_tick.js
 
       - name: Save state
