@@ -153,6 +153,31 @@ function format(n, risks) {
   ].filter((l) => l !== null).join('\n').slice(0, 3900);
 }
 
+// Latido diario: cuantas pasadas automaticas hubo en 24 h (esperadas: 144 con cron cada 10 min).
+async function heartbeat(itemsCount) {
+  const repo = process.env.GITHUB_REPOSITORY;
+  let line = 'no pude consultar las ejecuciones';
+  if (repo) {
+    const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
+    const r = spawnSync('gh', ['api', '--paginate',
+      `repos/${repo}/actions/workflows/radar.yml/runs?event=schedule&per_page=100&created=>=${since}`,
+      '--jq', '.workflow_runs[] | (.conclusion // "en_curso")'], { encoding: 'utf8', timeout: 60_000 });
+    if (r.status === 0) {
+      const c = r.stdout.split('\n').map((x) => x.trim()).filter(Boolean);
+      const ok = c.filter((x) => x === 'success').length;
+      const bad = c.filter((x) => x === 'failure' || x === 'timed_out').length;
+      line = `${c.length} pasadas automaticas en 24 h (${ok} ok, ${bad} con error) de ~144 posibles = ${Math.round((c.length / 144) * 100)}%`;
+    }
+  }
+  await send([
+    '💓 Latido diario del radar (GitHub Actions)',
+    `• ${line}`,
+    `• Bounties en memoria: ${itemsCount} vistas (ultimos 30 dias)`,
+    '• Referencia: 100-144 pasadas al dia es normal; GitHub atrasa o salta algunas. Menos de ~60, o ninguna, = revisar la pestaña Actions.',
+    '• Si no ves este mensaje manana, el radar se cayo.',
+  ].join('\n')).catch(() => {});
+}
+
 async function main() {
   if (process.env.RADAR_TEST === '1') {
     const r = await send('✅ Radar en la nube activo (GitHub Actions). Prueba de envio; si lees esto, los avisos llegan.');
@@ -230,4 +255,10 @@ async function main() {
   log('tick_done', { total: items.length, fresh: fresh.length, sent, overflow: overflow.length });
 }
 
-main().catch((e) => { log('radar_crashed', { err: e.message }); process.exit(1); });
+main()
+  .then(async () => {
+    if (process.env.RADAR_HEARTBEAT !== '1') return;
+    const seenDoc = await readJson(SEEN_FILE, { ids: {} });
+    await heartbeat(Object.keys(seenDoc.ids || {}).length);
+  })
+  .catch((e) => { log('radar_crashed', { err: e.message }); process.exit(1); });
