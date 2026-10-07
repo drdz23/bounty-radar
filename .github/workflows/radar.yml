@@ -65,7 +65,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RADAR_GH_TOKEN || secrets.GITHUB_TOKEN }}
           RADAR_DRY: ${{ inputs.dry && '1' || '0' }}
           RADAR_HEARTBEAT: ${{ (github.event.schedule == '0 14 * * *' || inputs.heartbeat) && '1' || '0' }}
-          RADAR_TEST:${{ inputs.test && '1' || '0' }}
+          RADAR_TEST: ${{ inputs.test && '1' || '0' }}
         run: node radar_tick.js
 
       - name: Save state
