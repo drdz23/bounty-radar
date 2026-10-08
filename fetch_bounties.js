@@ -499,6 +499,7 @@ async function saveCache(cache) {
 // ── FILTRO DE CALIDAD DE REPO ───────────────────────────────────────
 // Devuelve { ok, score, signals } tras evaluar señales objetivas.
 // El monto NO influye aquí (el monto no predice el merge; el repo sí).
+const QUALITY_CACHE_VERSION = 2;
 async function assessRepoQuality(fullName, token, cache) {
   const key = fullName.toLowerCase();
 
@@ -512,7 +513,8 @@ async function assessRepoQuality(fullName, token, cache) {
   }
 
   const cached = cache[key];
-  if (cached && Date.now() - (cached.assessed_at || 0) < QUALITY_TTL_MS) {
+  // v = version del algoritmo: al cambiar las reglas se reevaluan los repos ya cacheados.
+  if (cached && cached.v === QUALITY_CACHE_VERSION && Date.now() - (cached.assessed_at || 0) < QUALITY_TTL_MS) {
     return cached;
   }
 
@@ -574,10 +576,27 @@ async function assessRepoQuality(fullName, token, cache) {
         (p) => p.merged_at && now - new Date(p.merged_at).getTime() < 120 * 86_400_000
       ).length;
       signals.merged_prs_120d = mergedCount;
-      if (mergedCount >= 3) score += 3;
-      else if (mergedCount >= 1) score += 1;
+      // En un repo de menos de 30 dias y casi sin estrellas, los merges NO son historial:
+      // las granjas se mergean sus propios PRs el dia que nacen (visto 2026-10-08:
+      // Tributary-Labs/tributary-channels, 4 merges el mismo dia -> q=5).
+      const mergesCount = ageDays < 30 && (repo.stargazers_count ?? 0) <= 5 ? 0 : mergedCount;
+      if (mergesCount !== mergedCount) signals.merges_ignored_new_repo = true;
+      if (mergesCount >= 3) score += 3;
+      else if (mergesCount >= 1) score += 1;
       else score -= 1;
     } catch { signals.pulls_err = true; }
+
+    // AVALANCHA DE BOUNTIES: 30+ issues abiertos con titulo "[Bounty: $N]" en un repo
+    // con casi ninguna estrella = granja (decenas de cuentas creando 3 issues c/u).
+    if ((repo.stargazers_count ?? 0) <= 5 && (repo.open_issues_count ?? 0) >= 30) {
+      try {
+        const issues = await ghFetch(`${GH}/repos/${fullName}/issues?state=open&per_page=100`, token);
+        const n = (Array.isArray(issues) ? issues : [])
+          .filter((i) => !i.pull_request && /\[bounty:?\s*\$\s?\d/i.test(i.title || '')).length;
+        signals.bounty_titles = n;
+        if (n >= 30) { signals.bounty_flood = true; signals.fresh_bait = true; score -= 3; }
+      } catch { /* sin dato: no penaliza */ }
+    }
 
     // GRANJA DE MERGES para cebar agentes: repo sin estrellas pero que mergea
     // muchísimos PRs y es reciente. Ningún repo legítimo de 0-1 estrellas
@@ -609,7 +628,7 @@ async function assessRepoQuality(fullName, token, cache) {
   }
 
   if (hardFail) score = -99;
-  const result = { ok: !hardFail && score >= QUALITY_MIN, score, signals, assessed_at: Date.now() };
+  const result = { ok: !hardFail && score >= QUALITY_MIN, score, signals, assessed_at: Date.now(), v: QUALITY_CACHE_VERSION };
   cache[key] = result;
   return result;
 }
