@@ -2,7 +2,7 @@ name: radar
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/15 * * * *'
     - cron: '0 14 * * *'   # latido diario: 8:00 am Honduras
   workflow_dispatch:
     inputs:
