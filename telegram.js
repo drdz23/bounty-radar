@@ -37,7 +37,14 @@ function simpleHash(s) {
   return (h >>> 0).toString(36);
 }
 
-async function postMessage(text) {
+// Horas de silencio (22:00-07:00 hora de Honduras, UTC-6): el mensaje LLEGA, pero sin
+// sonido ni vibracion (disable_notification), para no despertar a nadie de madrugada.
+function quietHours(now = new Date()) {
+  const h = (now.getUTCHours() + 24 - 6) % 24;
+  return h >= 22 || h < 7;
+}
+
+async function postMessage(text, opts = {}) {
   if (!token || !chatId) {
     console.log("[TELEGRAM MOCK]:", text);
     return { ok: true, mock: true };
@@ -52,6 +59,7 @@ async function postMessage(text) {
     chat_id: chatId,
     text: plainText,
     disable_web_page_preview: true,
+    disable_notification: Boolean(opts.silent) || quietHours(),
   });
   let lastErr = null;
   for (let attempt = 0; attempt <= RETRY_ATTEMPTS; attempt++) {
@@ -78,14 +86,14 @@ async function postMessage(text) {
  * Devuelve { ok, deduped, mock, err? }.
  * Nunca lanza.
  */
-export async function sendNotification(message) {
+export async function sendNotification(message, opts = {}) {
   if (typeof message !== "string" || !message.trim()) {
     return { ok: false, deduped: false, err: "empty_message" };
   }
   if (trackAndCheckDuplicate(message)) {
     return { ok: true, deduped: true };
   }
-  return postMessage(message);
+  return postMessage(message, opts);
 }
 
 export default { sendNotification };

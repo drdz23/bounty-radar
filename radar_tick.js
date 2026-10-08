@@ -35,7 +35,7 @@ const MAX_AGE_DAYS = env('RADAR_MAX_AGE_DAYS', 30);
 const MAX_MSGS = env('RADAR_MAX_MSGS', 6);
 const DRY = process.env.RADAR_DRY === '1';
 
-const send = DRY ? async (m) => { console.log('[DRY] ' + m + '\n'); return { ok: true }; } : realSend;
+const send = DRY ? async (m, o) => { console.log('[DRY]' + (o?.silent ? ' (silencioso)' : '') + ' ' + m + '\n'); return { ok: true }; } : realSend;
 const log = (msg, meta = {}) => console.log(JSON.stringify({ ts: new Date().toISOString(), msg, ...meta }));
 
 // Repos que ya conocemos y cuyo pago nunca se confirmo (se avisa igual, con etiqueta).
@@ -215,12 +215,34 @@ async function main() {
     return;
   }
 
-  // Un mismo repo con 3+ bounties nuevas de golpe es el patron de granja/cebo:
-  // un solo aviso agrupado en vez de un mensaje por issue.
-  const byRepo = new Map();
-  for (const n of fresh) byRepo.set(n.repo, [...(byRepo.get(n.repo) || []), n]);
-  const grouped = new Set();
+  // Repos-cebo (nuevos, sin estrellas y sin PRs mergeados): UN solo resumen SILENCIOSO
+  // por pasada, sin detalle por issue. Son granjas que publican decenas de "bounties"
+  // sin decir quien paga (visto 2026-10-08: 20+ avisos de golpe a las 3 am).
+  const isBait = (n) => n.signals.fresh_bait ||
+    (typeof n.signals.age_days === 'number' && n.signals.age_days < 14 &&
+     (n.signals.stars ?? 0) <= 2 && n.signals.merged_prs_120d === 0);
+  const bait = fresh.filter(isBait);
+  const real = fresh.filter((n) => !isBait(n));
   let sent = 0;
+  if (bait.length) {
+    const repos = [...new Set(bait.map((n) => n.repo))];
+    const total = bait.reduce((a, n) => a + (Number(n.amount) || 0), 0);
+    const top = [...bait].sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)).slice(0, 5);
+    const msg = [
+      `🪤 ${bait.length} bounties nuevas de repos-cebo en ${repos.length} repos (suman $${total} en titulos)`,
+      '• Repos de pocos dias, 0 estrellas y sin PRs mergeados: ninguna dice quien paga. Resumen silencioso, sin detalle por issue.',
+      ...top.map((n) => `  - $${n.amount ?? '?'} ${n.repo}#${n.number}`),
+      bait.length > top.length ? `  ... y ${bait.length - top.length} mas` : null,
+    ].filter(Boolean).join('\n').slice(0, 3900);
+    const res = await send(msg, { silent: true }).catch((e) => ({ ok: false, err: e.message }));
+    if (res?.ok === false) { for (const n of bait) delete seen[n.id]; log('notify_failed', { kind: 'bait', err: res.err }); }
+    else { sent++; log('notified_bait', { count: bait.length, repos: repos.length }); }
+  }
+
+  // Un mismo repo (no cebo) con 3+ bounties nuevas de golpe: un solo aviso agrupado.
+  const byRepo = new Map();
+  for (const n of real) byRepo.set(n.repo, [...(byRepo.get(n.repo) || []), n]);
+  const grouped = new Set();
   for (const [repo, list] of byRepo) {
     if (list.length < 3) continue;
     const s = list[0].signals;
@@ -238,7 +260,7 @@ async function main() {
   }
 
   const overflow = [];
-  for (const n of fresh) {
+  for (const n of real) {
     if (grouped.has(n.id)) continue;
     if (sent >= MAX_MSGS) { overflow.push(n); continue; }
     const funding = assessFunding(n.repo, n.number);
