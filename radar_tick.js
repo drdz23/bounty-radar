@@ -18,6 +18,7 @@ import { spawn, spawnSync } from 'node:child_process';
 
 import { sendNotification as realSend } from './telegram.js';
 import { checkWatchedPRs } from './pr_watch.js';
+import { checkVerdiktaFeed } from './verdikta_watch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WORKSPACE = path.join(__dirname, 'sandbox_workspace');
@@ -187,6 +188,10 @@ async function main() {
   }
   await fs.mkdir(WORKSPACE, { recursive: true });
   await checkWatchedPRs(send).catch((e) => log('pr_watch_threw', { err: e.message }));
+  // Bounties de Verdikta (feed publico, sin clave): nuevas abiertas y dirigidas a nuestra wallet.
+  await checkVerdiktaFeed(send, path.join(WORKSPACE, 'verdikta_seen.json'))
+    .then((r) => log('verdikta_feed', r))
+    .catch((e) => log('verdikta_feed_threw', { err: e.message }));
 
   const fr = await runFetch();
   if (!fr.ok) { log('fetch_failed', { code: fr.code, err: fr.err, tail: fr.stderrTail }); process.exitCode = 1; return; }
