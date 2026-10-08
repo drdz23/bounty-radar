@@ -96,6 +96,9 @@ const GO_HEAVY_RE =
 
 // ── Señales de "esta bounty ya no está disponible" o "no es tarea de código" ──
 const AWARDED_RE = /\b(awarded to|assigned to\s+@|winner\s*[:=]|bounty (?:has been |is )?(?:claimed|awarded|paid)|paid ?out to|closed to (?:new )?submissions|no longer (?:accepting|available)|solution (?:selected|chosen))\b/i;
+// Condiciones de elegibilidad / medio de pago que el usuario (Honduras, cobra solo en cripto)
+// no puede cumplir: "SEPA only", "no cryptocurrency", "eligible: EU/EEA", "US residents only"...
+const INELIGIBLE_RE = /(\bno\s+crypto(?:currenc(?:y|ies))?\b|\bcrypto(?:currenc(?:y|ies))?\s+(?:is\s+|are\s+)?not\s+(?:accepted|supported)|\bSEPA\b[^\n]{0,60}\bonly\b|\bonly\b[^\n]{0,40}\bSEPA\b|\b(?:bank|wire)\s+transfer\s+only\b|\b(?:ACH|IBAN)\b[^\n]{0,40}\bonly\b|\beligible:[^\n]{0,80}\b(?:EU|EEA|UK|Europe|European)\b|\bonly\b[^\n]{0,30}\b(?:residents?|citizens?)\s+of\b|\b(?:residents?|citizens?)\s+of\s+[A-Za-z ,]{2,40}\bonly\b|\b(?:EU|EEA|UK|US|USA)[\s/-]*(?:based|residents?|citizens?)\s+only\b|\b(?:EU|EEA|UK|US|USA)[\s/-]*only\b)/i;
 const NON_CODE_RE = /(findings?\s+report|write[- ]?ups?\b|\binvestigat(?:e|ion|ing)\b|research\s+report|benchmark\s+report|\bproposal\b|design\s+doc|\bRFC\b|\bsurvey\b|audit\s+report|end-to-end test\b.*\breport\b|clean full run)/i;
 const CODE_SIGNAL_RE = /\b(fix|bug|error|crash|regression|implement|add support|broken|fails?|failing|exception|stack ?trace|patch|refactor|typo|incorrect|unexpected|does ?n'?t work|not working|repro)\b/i;
 // Etiquetas que indican que la bounty YA está resuelta/pagada/adjudicada.
@@ -255,7 +258,7 @@ function toHumanEntry(b, why, comments = null) {
   const currency = /(?:€|\bEUR(?:OS?)?\b)/i.test(text) ? 'EUR'
     : /\bUSDC\b/i.test(text) ? 'USDC'
     : /\bUSDT\b/i.test(text) ? 'USDT' : 'USD';
-  const payout_hints = [...new Set((text.match(/\b(paypal|usdc|usdt|crypto|bitcoin|btc|eth|wise|stripe|polar|venmo|algora|opire|bank transfer|wire transfer)\b/gi) || []).map((s) => s.toLowerCase()))];
+  const payout_hints = [...new Set((text.match(/\b(paypal|usdc|usdt|crypto|bitcoin|btc|eth|wise|stripe|polar|venmo|algora|opire|bank transfer|wire transfer|sepa|iban)\b/gi) || []).map((s) => s.toLowerCase()))];
   return {
     id: b.id, number: b.number, title: b.title, url: b.url,
     repo: b.repository?.full_name, amount: b.amount_usd, currency,
@@ -835,7 +838,7 @@ async function main() {
   // Pre-filtro barato ANTES de gastar llamadas de calidad.
   const cache = await loadCache();
   const humanCandidates = [];
-  const drop = { human_only: 0, spam: 0, excluded: 0, contested: 0, stale: 0, assigned: 0, awarded: 0, done_label: 0, non_code: 0, py_heavy: 0, rust_heavy: 0, go_heavy: 0, out_of_range: 0, no_repo: 0 };
+  const drop = { human_only: 0, ineligible: 0, spam: 0, excluded: 0, contested: 0, stale: 0, assigned: 0, awarded: 0, done_label: 0, non_code: 0, py_heavy: 0, rust_heavy: 0, go_heavy: 0, out_of_range: 0, no_repo: 0 };
   const prelim = raw
     .map((it) => ({ it, repo: repoFromIssue(it) }))
     .filter(({ it, repo }) => {
@@ -862,6 +865,8 @@ async function main() {
       // Texto: ¿ya adjudicada? ¿es un informe/investigación en vez de un fix?
       const hay = `${it.title}\n${String(it.body || '').slice(0, 800)}`;
       if (AWARDED_RE.test(hay)) { drop.awarded++; return false; }
+      // Elegibilidad/medio de pago imposibles para el usuario: ni siquiera como "solo humanos".
+      if (INELIGIBLE_RE.test(`${it.title}\n${String(it.body || '').slice(0, 3000)}`)) { drop.ineligible++; return false; }
       const humanMatch = hay.match(HUMAN_ONLY_RE);
       if (humanMatch) {
         const hUsd = inferUsd({ title: it.title, body: it.body || '' });
