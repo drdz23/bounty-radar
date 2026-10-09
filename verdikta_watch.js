@@ -78,7 +78,7 @@ export async function checkVerdiktaFeed(send, stateFile, { baseline = true, fetc
       const usd = b.eth != null ? ` (~$${(b.eth * ETH_USD).toFixed(0)})` : '';
       const head = kind === 'mine'
         ? '🎯 VERDIKTA: BOUNTY DIRIGIDA A TI'
-        : '🔔 Verdikta: bounty nueva abierta';
+        : '⚡ VERDIKTA PRIORITARIO: bounty nueva abierta (hay competencia, el primero que pasa gana)';
       const msg = [
         head,
         `• #${b.id} ${b.title.slice(0, 150)}${usd}`,
@@ -88,9 +88,10 @@ export async function checkVerdiktaFeed(send, stateFile, { baseline = true, fetc
         '',
         kind === 'mine'
           ? 'Esta es la via que mejor ha pagado. Lee el umbral y la rubrica en la pagina antes de enviar.'
-          : 'Antes de gastar el prepago (~$0.6 + gas), mira el umbral y si es trabajo que se puede hacer de verdad.',
+          : 'Mira el umbral. Metodo que gano 6 de 7: publicar, adjuntar el texto completo en .md + capturas, Start Evaluation, Finalize.',
       ].join('\n');
-      const r = await send(msg).catch((e) => ({ ok: false, err: e.message }));
+      // Prioritario: suena aunque sea de noche. Las tandas de Verdikta se adjudican en horas.
+      const r = await send(msg, { priority: true }).catch((e) => ({ ok: false, err: e.message }));
       if (r?.ok === false) { retry.add(b.id); continue; } // se reintenta en la proxima pasada
       notified++;
     }

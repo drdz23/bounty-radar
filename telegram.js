@@ -59,7 +59,8 @@ async function postMessage(text, opts = {}) {
     chat_id: chatId,
     text: plainText,
     disable_web_page_preview: true,
-    disable_notification: Boolean(opts.silent) || quietHours(),
+    // opts.priority: suena siempre, incluso en horas de silencio (bounties con competencia).
+    disable_notification: !opts.priority && (Boolean(opts.silent) || quietHours()),
   });
   let lastErr = null;
   for (let attempt = 0; attempt <= RETRY_ATTEMPTS; attempt++) {
