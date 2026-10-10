@@ -48,8 +48,15 @@ const KNOWN_REPO_NOTES = [
 // Repos silenciados: sus bounties NUEVAS no se avisan (se marcan como vistas igual).
 // No afecta a pr_watch: los PRs propios en la watchlist se siguen vigilando.
 // SUSU-LABS: el pago nunca se confirmo; el usuario pidio silenciarlo (2026-10-09).
-const MUTED_REPOS = [/^susu-labs\//i];
+// Movalabs-crew: un contribuidor reclama $1,295 impagos por 16 PRs mergeados (mova-store#970).
+const MUTED_REPOS = [/^susu-labs\//i, /^movalabs-crew\//i];
 const isMuted = (repo) => MUTED_REPOS.some((re) => re.test(repo || ''));
+
+// Reclamos de pago disfrazados de bounty: alguien pide que le paguen PRs ya mergeados
+// (visto 2026-10-10: Movalabs-crew/mova-store#970, "$1,295 ... 16 merged contributions").
+// No son trabajo disponible y delatan a un repo que no paga.
+const PAYMENT_CLAIM_RE = /(unpaid|not (?:been )?paid|payment (?:remains|still|is) (?:unresolved|pending|missing)|(?:resolve|settle|pay)\b.{0,60}\b(?:bounty|bounties)\b.{0,40}\bclaim|advertised[- ]bounty claim|\bfor \d+ merged (?:contributions|prs|pull requests))/i;
+
 
 const FUNDING_Q_RE = /(funded|sponsor|who (?:pays|will pay|approves)|commercial terms|payment (?:terms|method)|payout (?:method|terms)|is the (?:advertised )?(?:\$|usd)?\s?\d+)/i;
 
@@ -221,7 +228,7 @@ async function main() {
   const fresh = [];
   let muted = 0;
   for (const n of items) {
-    if (!seen[n.id]) { if (isMuted(n.repo)) muted++; else fresh.push(n); }
+    if (!seen[n.id]) { if (isMuted(n.repo) || PAYMENT_CLAIM_RE.test(n.title)) muted++; else fresh.push(n); }
     seen[n.id] = seen[n.id] || now;
   }
   if (muted) log('muted_repos_skipped', { count: muted });
