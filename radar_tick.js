@@ -19,6 +19,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { sendNotification as realSend } from './telegram.js';
 import { checkWatchedPRs } from './pr_watch.js';
 import { checkVerdiktaFeed } from './verdikta_watch.js';
+import { checkArcBounty } from './arcbounty_watch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WORKSPACE = path.join(__dirname, 'sandbox_workspace');
@@ -41,9 +42,14 @@ const log = (msg, meta = {}) => console.log(JSON.stringify({ ts: new Date().toIS
 
 // Repos que ya conocemos y cuyo pago nunca se confirmo (se avisa igual, con etiqueta).
 const KNOWN_REPO_NOTES = [
-  [/^susu-labs\//i, 'SUSU-LABS: el pago nunca se confirmo y los rivales mergean en horas; probabilidad baja'],
   [/^sampled-labs\//i, 'sampled-labs: repo de 1 dia con 100+ bounties, nadie dice como paga; pregunta antes de trabajar'],
 ];
+
+// Repos silenciados: sus bounties NUEVAS no se avisan (se marcan como vistas igual).
+// No afecta a pr_watch: los PRs propios en la watchlist se siguen vigilando.
+// SUSU-LABS: el pago nunca se confirmo; el usuario pidio silenciarlo (2026-10-09).
+const MUTED_REPOS = [/^susu-labs\//i];
+const isMuted = (repo) => MUTED_REPOS.some((re) => re.test(repo || ''));
 
 const FUNDING_Q_RE = /(funded|sponsor|who (?:pays|will pay|approves)|commercial terms|payment (?:terms|method)|payout (?:method|terms)|is the (?:advertised )?(?:\$|usd)?\s?\d+)/i;
 
@@ -193,6 +199,11 @@ async function main() {
     .then((r) => log('verdikta_feed', r))
     .catch((e) => log('verdikta_feed_threw', { err: e.message }));
 
+  // ArcBounty (API publica, USDC en Arc): bounties abiertas nuevas a las que un humano puede responder.
+  await checkArcBounty(send, path.join(WORKSPACE, 'arcbounty_seen.json'))
+    .then((r) => log('arcbounty', r))
+    .catch((e) => log('arcbounty_threw', { err: e.message }));
+
   const fr = await runFetch();
   if (!fr.ok) { log('fetch_failed', { code: fr.code, err: fr.err, tail: fr.stderrTail }); process.exitCode = 1; return; }
   const payload = await readJson(BOUNTIES_FILE, {});
@@ -208,10 +219,12 @@ async function main() {
   for (const [id, ts] of Object.entries(seen)) if (now - Number(ts) > SEEN_TTL_MS) delete seen[id];
 
   const fresh = [];
+  let muted = 0;
   for (const n of items) {
-    if (!seen[n.id]) fresh.push(n);
+    if (!seen[n.id]) { if (isMuted(n.repo)) muted++; else fresh.push(n); }
     seen[n.id] = seen[n.id] || now;
   }
+  if (muted) log('muted_repos_skipped', { count: muted });
   fresh.sort((a, b) => (b.q ?? 0) - (a.q ?? 0) || (b.amount ?? 0) - (a.amount ?? 0));
 
   if (firstRun && process.env.RADAR_NO_BASELINE !== '1') {
