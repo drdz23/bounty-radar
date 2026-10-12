@@ -20,6 +20,7 @@ import { sendNotification as realSend } from './telegram.js';
 import { checkWatchedPRs } from './pr_watch.js';
 import { checkVerdiktaFeed } from './verdikta_watch.js';
 import { checkArcBounty } from './arcbounty_watch.js';
+import { checkCompetitions } from './competitions_watch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WORKSPACE = path.join(__dirname, 'sandbox_workspace');
@@ -210,6 +211,11 @@ async function main() {
   await checkArcBounty(send, path.join(WORKSPACE, 'arcbounty_seen.json'))
     .then((r) => log('arcbounty', r))
     .catch((e) => log('arcbounty_threw', { err: e.message }));
+
+  // Competencias de auditoria nuevas (Cantina, Code4rena, Sherlock; APIs publicas): llegar el dia 1 al codigo fresco.
+  await checkCompetitions(send, path.join(WORKSPACE, 'competitions_seen.json'))
+    .then((r) => log('competitions', r))
+    .catch((e) => log('competitions_threw', { err: e.message }));
 
   const fr = await runFetch();
   if (!fr.ok) { log('fetch_failed', { code: fr.code, err: fr.err, tail: fr.stderrTail }); process.exitCode = 1; return; }
