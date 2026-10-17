@@ -1,0 +1,82 @@
+{
+  "verdikta/verdikta-applications#44": {
+    "comments": [],
+    "reviews": [],
+    "state": "closed",
+    "merged": true
+  },
+  "verdikta/verdikta-applications#46": {
+    "comments": [
+      5852885209,
+      6029312775,
+      6029520242,
+      6030086835,
+      6030130626,
+      6030183185,
+      6043625210,
+      6044715633
+    ],
+    "reviews": [],
+    "state": "closed",
+    "merged": true
+  },
+  "getnora-io/nora#1034": {
+    "comments": [
+      5966553217
+    ],
+    "reviews": [],
+    "state": "closed",
+    "merged": false
+  },
+  "getnora-io/nora#1038": {
+    "comments": [
+      5972536289,
+      5972590677,
+      5972615161,
+      5972636802,
+      5972662949,
+      5972785956
+    ],
+    "reviews": [
+      5402316777,
+      5402350702,
+      5402387878
+    ],
+    "state": "closed",
+    "merged": true
+  },
+  "SUSU-LABS/susu-contracts#17": {
+    "comments": [],
+    "reviews": [],
+    "state": "closed",
+    "merged": false
+  },
+  "SUSU-LABS/susu-contracts#18": {
+    "comments": [
+      6027587965
+    ],
+    "reviews": [],
+    "state": "closed",
+    "merged": true
+  },
+  "verdikta/verdikta-applications#35": {
+    "comments": [
+      5742238596,
+      6026372064
+    ],
+    "reviews": [],
+    "state": "closed",
+    "merged": true
+  },
+  "sampled-labs/sampled#46": {
+    "comments": [
+      6048452177,
+      6052393612,
+      6074808749,
+      6077628943
+    ],
+    "reviews": [],
+    "state": null,
+    "merged": false
+  }
+}
