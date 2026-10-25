@@ -224,8 +224,11 @@ const BAIT_CONTENT_RE =
 // podzemniytip/shipradar#1 (auto-declarado "This is a proposal, not a claim
 // on an existing bounty", + un segundo bot -OgK1lua- spameando 7 comentarios
 // idénticos — huele a granja diseñada para atraer bounty-hunters autónomos).
+// También los títulos "[Bounty proposal] fix(...) ($50)" de BasedHardware/omi:
+// un externo abre un issue proponiéndose a sí mismo $50 por su propio PR;
+// decenas cerradas sin pago (visto 2026-10-22, #23287/#23292/#23294).
 const SPECULATIVE_PITCH_RE =
-  /(not a claim on an? existing bounty|this is a proposal,?\s*not\b|would you sponsor|payable\s+(?:after|upon)\s+acceptance|please confirm the payment method|prepared\s+(?:and\s+tested\s+)?with an? AI\s+(?:coding\s+)?assistant)/i;
+  /(\bbounty\s+proposal\b|not a claim on an? existing bounty|this is a proposal,?\s*not\b|would you sponsor|payable\s+(?:after|upon)\s+acceptance|please confirm the payment method|prepared\s+(?:and\s+tested\s+)?with an? AI\s+(?:coding\s+)?assistant)/i;
 
 // "Payout requests" — un CONTRIBUYENTE (no nosotros) pidiéndole al maintainer
 // que le PAGUE por PRs que YA MERGEÓ. No es una tarea abierta: no hay nada
@@ -735,7 +738,7 @@ function normalizeIssue(it, repoQuality, enrichedUsd = null) {
     tagSpam(it.title) ||
     SPAM_RE.test(`${repoFullName} ${it.title} ${body.slice(0, 400)}`) ||
     BAIT_CONTENT_RE.test(`${it.title}\n${body.slice(0, 600)}`) ||
-    SPECULATIVE_PITCH_RE.test(body) || // cuerpo completo: la frase clave suele ir al final
+    SPECULATIVE_PITCH_RE.test(`${it.title}\n${body}`) || // cuerpo completo: la frase clave suele ir al final
     PAYOUT_REQUEST_RE.test(it.title) || PAYOUT_REQUEST_RE.test(body) ||
     THIRD_PARTY_CLAIM_NOTICE_RE.test(it.title) || THIRD_PARTY_CLAIM_NOTICE_RE.test(body) ||
     isDigestOrReport(body, repoFullName);
@@ -849,7 +852,7 @@ async function main() {
       if (tagSpam(it.title)) { drop.spam++; return false; }
       if (SPAM_RE.test(`${repo} ${it.title}`)) { drop.spam++; return false; }
       if (BAIT_CONTENT_RE.test(`${it.title}\n${String(it.body || '').slice(0, 600)}`)) { drop.spam++; return false; }
-      if (SPECULATIVE_PITCH_RE.test(String(it.body || ''))) { drop.spam++; return false; }
+      if (SPECULATIVE_PITCH_RE.test(`${it.title}\n${String(it.body || '')}`)) { drop.spam++; return false; }
       if (PAYOUT_REQUEST_RE.test(it.title) || PAYOUT_REQUEST_RE.test(String(it.body || ''))) { drop.spam++; return false; }
       if (THIRD_PARTY_CLAIM_NOTICE_RE.test(it.title) || THIRD_PARTY_CLAIM_NOTICE_RE.test(String(it.body || ''))) { drop.spam++; return false; }
       if (isDigestOrReport(String(it.body || ''), repo)) { drop.spam++; return false; }
